@@ -13,7 +13,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
   const [role, setRole] = useState<'administrator' | 'account_manager' | 'recruiter' | 'finance' | 'consultant'>('consultant');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [needsConfirmation, setNeedsConfirmation] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signup } = useAuth();
 
@@ -21,22 +20,13 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    setNeedsConfirmation(false);
     setLoading(true);
 
     try {
       const result = await signup(email, password, { name, role });
-      
-      if (result?.user && !result.session) {
-        // Email confirmation required
-        setNeedsConfirmation(true);
-        setSuccess('Account created! Please check your email and click the confirmation link to complete registration.');
-      } else if (result?.session) {
-        // Auto-confirmed (shouldn't happen with email confirmation enabled)
+      if (result?.user) {
         setSuccess('Account created successfully! You can now sign in.');
-        setTimeout(() => {
-          onSwitchToLogin();
-        }, 2000);
+        setTimeout(() => { onSwitchToLogin(); }, 2000);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to create account');
@@ -67,11 +57,6 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
             <CheckCircle className="w-5 h-5 text-green-600 mr-2" />
             <div className="text-sm text-green-700">
               <p>{success}</p>
-              {needsConfirmation && (
-                <p className="mt-2 text-xs">
-                  Didn't receive the email? Check your spam folder or contact support.
-                </p>
-              )}
             </div>
           </div>
         )}
@@ -151,7 +136,7 @@ export const SignupForm: React.FC<SignupFormProps> = ({ onSwitchToLogin }) => {
           onClick={onSwitchToLogin}
           className="text-primary hover:text-primary/80 text-sm font-medium"
         >
-          {needsConfirmation ? 'Already confirmed your email? Sign in' : 'Already have an account? Sign in'}
+          Already have an account? Sign in
         </button>
       </div>
     </div>

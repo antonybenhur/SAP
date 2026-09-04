@@ -21,13 +21,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSwitchToSignup }) => {
     try {
       await login(email, password);
     } catch (err) {
-      if (err.message?.includes('email_not_confirmed')) {
-        setError('Please check your email and click the confirmation link before signing in.');
-      } else if (err.message?.includes('invalid_credentials')) {
-        setError('Invalid email or password');
-      } else {
-        setError(err.message || 'Failed to sign in');
-      }
+      setError(err.message || 'Failed to sign in');
     } finally {
       setLoading(false);
     }

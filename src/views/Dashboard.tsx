@@ -2,7 +2,7 @@ import React from 'react';
 import { useState, useEffect } from 'react';
 import { KPICard } from '../components/Dashboard/KPICard';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabase';
+import { candidatesTable, jobOrdersTable, timesheetsTable } from '../lib/db';
 import { Users, Briefcase, DollarSign, Clock } from 'lucide-react';
 
 interface KPI {
@@ -21,72 +21,26 @@ export const Dashboard: React.FC = () => {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        // Fetch candidates count
-        const { count: candidatesCount } = await supabase
-          .from('candidates')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'available');
+        const candidatesCount = await candidatesTable.countByStatus('available');
+        const jobOrdersCount = await jobOrdersTable.countByStatus('open');
+        const placedCount = await candidatesTable.countByStatus('placed');
+        const approvedTimesheets = await timesheetsTable.selectApprovedHours();
+        const totalHours = approvedTimesheets.reduce((sum, ts) => sum + (ts.hours || 0), 0);
+        const estimatedRevenue = totalHours * 85;
 
-        // Fetch job orders count
-        const { count: jobOrdersCount } = await supabase
-          .from('job_orders')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'open');
-
-        // Fetch placed candidates count
-        const { count: placedCount } = await supabase
-          .from('candidates')
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'placed');
-
-        // Fetch approved timesheets for revenue calculation
-        const { data: approvedTimesheets } = await supabase
-          .from('timesheets_with_details')
-          .select('hours')
-          .eq('status', 'approved');
-
-        const totalHours = approvedTimesheets?.reduce((sum, ts) => sum + (ts.hours || 0), 0) || 0;
-        const estimatedRevenue = totalHours * 85; // Average rate
-
-        const dashboardKPIs: KPI[] = [
-          {
-            name: 'Active Candidates',
-            value: candidatesCount || 0,
-            format: 'number',
-            trend: 'up',
-            change: 12,
-          },
-          {
-            name: 'Open Job Orders',
-            value: jobOrdersCount || 0,
-            format: 'number',
-            trend: 'stable',
-          },
-          {
-            name: 'Monthly Revenue',
-            value: estimatedRevenue,
-            format: 'currency',
-            trend: 'up',
-            change: 8,
-          },
-          {
-            name: 'Placed Consultants',
-            value: placedCount || 0,
-            format: 'number',
-            trend: 'up',
-            change: 5,
-          },
-        ];
-
-        setKpis(dashboardKPIs);
+        setKpis([
+          { name: 'Active Candidates', value: candidatesCount, format: 'number', trend: 'up', change: 12 },
+          { name: 'Open Job Orders', value: jobOrdersCount, format: 'number', trend: 'stable' },
+          { name: 'Monthly Revenue', value: estimatedRevenue, format: 'currency', trend: 'up', change: 8 },
+          { name: 'Placed Consultants', value: placedCount, format: 'number', trend: 'up', change: 5 },
+        ]);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
-        // Fallback to mock data
         setKpis([
-          { name: 'Active Candidates', value: 10, format: 'number', trend: 'up' },
-          { name: 'Open Job Orders', value: 4, format: 'number', trend: 'stable' },
-          { name: 'Monthly Revenue', value: 25000, format: 'currency', trend: 'up' },
-          { name: 'Placed Consultants', value: 2, format: 'number', trend: 'up' },
+          { name: 'Active Candidates', value: 0, format: 'number', trend: 'up' },
+          { name: 'Open Job Orders', value: 0, format: 'number', trend: 'stable' },
+          { name: 'Monthly Revenue', value: 0, format: 'currency', trend: 'up' },
+          { name: 'Placed Consultants', value: 0, format: 'number', trend: 'up' },
         ]);
       } finally {
         setLoading(false);
@@ -103,13 +57,9 @@ export const Dashboard: React.FC = () => {
       case 'account_manager':
         return kpis.slice(0, 3);
       case 'recruiter':
-        return kpis.filter(kpi => 
-          ['Active Candidates', 'Open Job Orders', 'Placed Consultants'].includes(kpi.name)
-        );
+        return kpis.filter(kpi => ['Active Candidates', 'Open Job Orders', 'Placed Consultants'].includes(kpi.name));
       case 'finance':
-        return kpis.filter(kpi => 
-          ['Monthly Revenue', 'Placed Consultants'].includes(kpi.name)
-        );
+        return kpis.filter(kpi => ['Monthly Revenue', 'Placed Consultants'].includes(kpi.name));
       default:
         return kpis.slice(0, 2);
     }
@@ -138,24 +88,17 @@ export const Dashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Message */}
       <div className="bg-neutral-900 text-white rounded-lg p-6">
-        <h2 className="text-2xl font-bold mb-2">
-          Welcome back, {user?.name}!
-        </h2>
-        <p className="text-neutral-300">
-          Here's what's happening with your staff augmentation operations today.
-        </p>
+        <h2 className="text-2xl font-bold mb-2">Welcome back, {user?.name}!</h2>
+        <p className="text-neutral-300">Here's what's happening with your staff augmentation operations today.</p>
       </div>
 
-      {/* KPI Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {relevantKPIs.map((kpi, index) => (
           <KPICard key={index} kpi={kpi} />
         ))}
       </div>
 
-      {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {user?.role !== 'consultant' && (
           <>
@@ -170,7 +113,6 @@ export const Dashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-
             <div className="bg-card p-6 rounded-lg border border-border hover:shadow-md transition-all duration-200 cursor-pointer">
               <div className="flex items-center">
                 <div className="p-3 bg-green-500/10 rounded-lg">
@@ -182,7 +124,6 @@ export const Dashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-
             <div className="bg-card p-6 rounded-lg border border-border hover:shadow-md transition-all duration-200 cursor-pointer">
               <div className="flex items-center">
                 <div className="p-3 bg-orange-500/10 rounded-lg">
@@ -196,7 +137,6 @@ export const Dashboard: React.FC = () => {
             </div>
           </>
         )}
-
         <div className="bg-card p-6 rounded-lg border border-border hover:shadow-md transition-all duration-200 cursor-pointer">
           <div className="flex items-center">
             <div className="p-3 bg-purple-500/10 rounded-lg">
@@ -210,7 +150,6 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Recent Activity */}
       <div className="bg-card rounded-lg border border-border">
         <div className="p-6 border-b border-border">
           <h3 className="text-lg font-semibold text-foreground">Recent Activity</h3>
